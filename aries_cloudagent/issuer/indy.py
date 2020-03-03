@@ -3,12 +3,12 @@
 import json
 import logging
 
-
 import indy.anoncreds
 
-from ..error import BaseError
+from ..core.error import BaseError
+from ..messaging.util import encode
+
 from .base import BaseIssuer
-from .util import encode
 
 
 class IssuerError(BaseError):

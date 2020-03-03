@@ -24,7 +24,7 @@ from ..messages.inner.presentation_preview import (
     PresPredSpec,
 )
 from ..models.presentation_exchange import V10PresentationExchange
-from ..util.indy import indy_proof_request2indy_requested_creds
+from ..util.indy import indy_proof_req_preview2indy_requested_creds
 
 
 CONN_ID = "connection_id"
@@ -46,9 +46,9 @@ PRES_PREVIEW = PresentationPreview(
         )
     ],
 )
-PROOF_REQ_NAME="name"
-PROOF_REQ_VERSION="1.0"
-PROOF_REQ_NONCE="12345"
+PROOF_REQ_NAME = "name"
+PROOF_REQ_VERSION = "1.0"
+PROOF_REQ_NONCE = "12345"
 
 
 class TestPresentationManager(AsyncTestCase):
@@ -69,22 +69,15 @@ class TestPresentationManager(AsyncTestCase):
 
         Holder = async_mock.MagicMock(IndyHolder, autospec=True)
         self.holder = Holder()
-        self.holder.get_credentials_for_presentation_request_by_referent = (
-            async_mock.CoroutineMock(
-                return_value=(
-                    {
-                        "cred_info": {
-                            "referent": "dummy_reft"
-                    }
+        self.holder.get_credentials_for_presentation_request_by_referent = async_mock.CoroutineMock(
+            return_value=(
+                {
+                    "cred_info": {"referent": "dummy_reft"}
                 },  # leave this comma: return a tuple
-                )
             )
         )
         self.holder.get_credential = async_mock.CoroutineMock(
-            return_value={
-                "schema_id": S_ID,
-                "cred_def_id": CD_ID,
-            }
+            return_value={"schema_id": S_ID, "cred_def_id": CD_ID}
         )
         self.holder.create_presentation = async_mock.CoroutineMock(
             return_value=async_mock.MagicMock()
@@ -93,14 +86,45 @@ class TestPresentationManager(AsyncTestCase):
 
         Verifier = async_mock.MagicMock(IndyVerifier, autospec=True)
         self.verifier = Verifier()
-        self.verifier.verify_presentation = (
-            async_mock.CoroutineMock(
-                return_value="true"
-            )
+        self.verifier.verify_presentation = async_mock.CoroutineMock(
+            return_value="true"
         )
         self.context.injector.bind_instance(BaseVerifier, self.verifier)
 
         self.manager = PresentationManager(self.context)
+
+    async def test_record_eq(self):
+        same = [
+            V10PresentationExchange(
+                presentation_exchange_id="dummy-0",
+                thread_id="thread-0",
+                role=V10PresentationExchange.ROLE_PROVER
+            )
+        ] * 2
+        diff = [
+            V10PresentationExchange(
+                presentation_exchange_id="dummy-1",
+                role=V10PresentationExchange.ROLE_PROVER
+            ),
+            V10PresentationExchange(
+                presentation_exchange_id="dummy-0",
+                thread_id="thread-1",
+                role=V10PresentationExchange.ROLE_PROVER
+            ),
+            V10PresentationExchange(
+                presentation_exchange_id="dummy-1",
+                thread_id="thread-0",
+                role=V10PresentationExchange.ROLE_VERIFIER
+            )
+        ]
+
+        for i in range(len(same) - 1):
+            for j in range(i, len(same)):
+                assert same[i] == same[j]
+
+        for i in range(len(diff) - 1):
+            for j in range(i, len(diff)):
+                assert diff[i] == diff[j] if i == j else diff[i] != diff[j]
 
     async def test_create_exchange_for_proposal(self):
         self.context.connection_record = async_mock.MagicMock()
@@ -142,9 +166,7 @@ class TestPresentationManager(AsyncTestCase):
     async def test_create_bound_request(self):
         comment = "comment"
 
-        proposal = PresentationProposal(
-            presentation_proposal=PRES_PREVIEW
-        )
+        proposal = PresentationProposal(presentation_proposal=PRES_PREVIEW)
         exchange = V10PresentationExchange(
             presentation_proposal_dict=proposal.serialize(),
             role=V10PresentationExchange.ROLE_VERIFIER,
@@ -203,9 +225,7 @@ class TestPresentationManager(AsyncTestCase):
 
         exchange_in = V10PresentationExchange()
         indy_proof_req = await PRES_PREVIEW.indy_proof_request(
-            name=PROOF_REQ_NAME,
-            version=PROOF_REQ_VERSION,
-            nonce=PROOF_REQ_NONCE,
+            name=PROOF_REQ_NAME, version=PROOF_REQ_VERSION, nonce=PROOF_REQ_NONCE
         )
 
         request = async_mock.MagicMock()
@@ -222,12 +242,13 @@ class TestPresentationManager(AsyncTestCase):
                 return_value=mock_attach_decorator
             )
 
-            req_creds = await indy_proof_request2indy_requested_creds(
-                indy_proof_req, self.holder
+            req_creds = await indy_proof_req_preview2indy_requested_creds(
+                indy_proof_req,
+                holder=self.holder
             )
 
-            (exchange_out, pres_msg) = (
-                await self.manager.create_presentation(exchange_in, req_creds)
+            (exchange_out, pres_msg) = await self.manager.create_presentation(
+                exchange_in, req_creds
             )
             save_ex.assert_called_once()
             assert exchange_out.state == V10PresentationExchange.STATE_PRESENTATION_SENT
@@ -235,22 +256,19 @@ class TestPresentationManager(AsyncTestCase):
     async def test_no_matching_creds_for_proof_req(self):
         exchange_in = V10PresentationExchange()
         indy_proof_req = await PRES_PREVIEW.indy_proof_request(
-            name=PROOF_REQ_NAME,
-            version=PROOF_REQ_VERSION,
-            nonce=PROOF_REQ_NONCE,
+            name=PROOF_REQ_NAME, version=PROOF_REQ_VERSION, nonce=PROOF_REQ_NONCE
         )
         self.holder.get_credentials_for_presentation_request_by_referent.return_value = ()
 
         with self.assertRaises(ValueError):
-            await indy_proof_request2indy_requested_creds(
-                indy_proof_req, self.holder
+            await indy_proof_req_preview2indy_requested_creds(
+                indy_proof_req,
+                holder=self.holder
             )
 
         self.holder.get_credentials_for_presentation_request_by_referent.return_value = (
             {
-                "cred_info": {
-                    "referent": "dummy_reft"
-                }
+                "cred_info": {"referent": "dummy_reft"}
             },  # leave this comma: return a tuple
         )
 
@@ -258,6 +276,210 @@ class TestPresentationManager(AsyncTestCase):
         self.context.connection_record = async_mock.MagicMock()
         self.context.connection_record.connection_id = CONN_ID
 
+        exchange_dummy = V10PresentationExchange(
+            presentation_proposal_dict={
+                "presentation_proposal": {
+                    "@type": (
+                        "did:sov:BzCbsNYhMrjHiqZDTUASHg;"
+                        "spec/present-proof/1.0/presentation-preview"
+                    ),
+                    "attributes": [
+                        {
+                            "name": "favourite",
+                            "cred_def_id": CD_ID,
+                            "value": "potato"
+                        },
+                        {
+                            "name": "icon",
+                            "cred_def_id": CD_ID,
+                            "value": "cG90YXRv"
+                        }
+                    ],
+                    "predicates": []
+                }
+            },
+            presentation_request={
+                "name": "proof-request",
+                "version": "1.0",
+                "nonce": "1234567890",
+                "requested_attributes": {
+                    "0_favourite_uuid": {
+                        "name": "favourite",
+                        "restrictions": [
+                            {
+                                "cred_def_id": CD_ID,
+                            }
+                        ]
+                    },
+                    "1_icon_uuid": {
+                        "name": "icon",
+                        "restrictions": [
+                            {
+                                "cred_def_id": CD_ID,
+                            }
+                        ]
+                    }
+                }
+            },
+            presentation={
+                "proof": {
+                    "proofs": [],
+                    "requested_proof": {
+                        "revealed_attrs": {
+                            "0_favourite_uuid": {
+                                "sub_proof_index": 0,
+                                "raw": "potato",
+                                "encoded": "12345678901234567890"
+                            },
+                            "1_icon_uuid": {
+                                "sub_proof_index": 1,
+                                "raw": "cG90YXRv",
+                                "encoded": "12345678901234567890"
+                            }
+                        },
+                        "self_attested_attrs": {},
+                        "unrevealed_attrs": {},
+                        "predicates": {
+                        }
+                    }
+                },
+                "identifiers": [
+                    {
+                        "schema_id": S_ID,
+                        "cred_def_id": CD_ID,
+                        "rev_reg_id": None,
+                        "timestamp": None
+                    },
+                    {
+                        "schema_id": S_ID,
+                        "cred_def_id": CD_ID,
+                        "rev_reg_id": None,
+                        "timestamp": None
+                    }
+                ]
+            }
+        )
+        self.context.message = async_mock.MagicMock()
+
+        with async_mock.patch.object(
+            V10PresentationExchange, "save", autospec=True
+        ) as save_ex, async_mock.patch.object(
+            V10PresentationExchange, "retrieve_by_tag_filter", autospec=True
+        ) as retrieve_ex:
+            retrieve_ex.return_value = exchange_dummy
+            exchange_out = await self.manager.receive_presentation()
+            retrieve_ex.assert_called_once_with(
+                self.context,
+                {"thread_id": self.context.message._thread_id},
+                {"connection_id": self.context.connection_record.connection_id},
+            )
+            save_ex.assert_called_once()
+
+            assert exchange_out.state == (
+                V10PresentationExchange.STATE_PRESENTATION_RECEIVED
+            )
+
+    async def test_receive_presentation_bait_and_switch(self):
+        self.context.connection_record = async_mock.MagicMock()
+        self.context.connection_record.connection_id = CONN_ID
+
+        exchange_dummy = V10PresentationExchange(
+            presentation_proposal_dict={
+                "presentation_proposal": {
+                    "@type": (
+                        "did:sov:BzCbsNYhMrjHiqZDTUASHg;"
+                        "spec/present-proof/1.0/presentation-preview"
+                    ),
+                    "attributes": [
+                        {
+                            "name": "favourite",
+                            "cred_def_id": CD_ID,
+                            "value": "no potato"
+                        },
+                        {
+                            "name": "icon",
+                            "cred_def_id": CD_ID,
+                            "value": "cG90YXRv"
+                        }
+                    ],
+                    "predicates": []
+                }
+            },
+            presentation_request={
+                "name": "proof-request",
+                "version": "1.0",
+                "nonce": "1234567890",
+                "requested_attributes": {
+                    "0_favourite_uuid": {
+                        "name": "favourite",
+                        "restrictions": [
+                            {
+                                "cred_def_id": CD_ID,
+                            }
+                        ]
+                    },
+                    "1_icon_uuid": {
+                        "name": "icon",
+                        "restrictions": [
+                            {
+                                "cred_def_id": CD_ID,
+                            }
+                        ]
+                    }
+                }
+            }
+        )
+        self.context.message = async_mock.MagicMock()
+        self.context.message.indy_proof = async_mock.MagicMock(
+            return_value={
+                "proof": {
+                    "proofs": [],
+                },
+                "requested_proof": {
+                    "revealed_attrs": {
+                        "0_favourite_uuid": {
+                            "sub_proof_index": 0,
+                            "raw": "potato",
+                            "encoded": "12345678901234567890"
+                        },
+                        "1_icon_uuid": {
+                            "sub_proof_index": 1,
+                            "raw": "cG90YXRv",
+                            "encoded": "23456789012345678901"
+                        }
+                    },
+                    "self_attested_attrs": {},
+                    "unrevealed_attrs": {},
+                    "predicates": {
+                    }
+                },
+                "identifiers": [
+                    {
+                        "schema_id": S_ID,
+                        "cred_def_id": CD_ID,
+                        "rev_reg_id": None,
+                        "timestamp": None
+                    },
+                    {
+                        "schema_id": S_ID,
+                        "cred_def_id": CD_ID,
+                        "rev_reg_id": None,
+                        "timestamp": None
+                    }
+                ]
+            }
+        )
+
+        with async_mock.patch.object(
+            V10PresentationExchange, "save", autospec=True
+        ) as save_ex, async_mock.patch.object(
+            V10PresentationExchange, "retrieve_by_tag_filter", autospec=True
+        ) as retrieve_ex:
+            retrieve_ex.return_value = exchange_dummy
+            with self.assertRaises(PresentationManagerError):
+                await self.manager.receive_presentation()
+
+    async def test_receive_presentation_connection_less(self):
         exchange_dummy = V10PresentationExchange()
         self.context.message = async_mock.MagicMock()
 
@@ -268,6 +490,11 @@ class TestPresentationManager(AsyncTestCase):
         ) as retrieve_ex:
             retrieve_ex.return_value = exchange_dummy
             exchange_out = await self.manager.receive_presentation()
+            retrieve_ex.assert_called_once_with(
+                self.context,
+                {"thread_id": self.context.message._thread_id},
+                None,
+            )
             save_ex.assert_called_once()
 
             assert exchange_out.state == (
@@ -277,12 +504,7 @@ class TestPresentationManager(AsyncTestCase):
     async def test_verify_presentation(self):
         exchange_in = V10PresentationExchange()
         exchange_in.presentation = {
-            "identifiers": [
-                {
-                    "schema_id": S_ID,
-                    "cred_def_id": CD_ID,
-                }
-            ]
+            "identifiers": [{"schema_id": S_ID, "cred_def_id": CD_ID}]
         }
 
         with async_mock.patch.object(
@@ -291,9 +513,7 @@ class TestPresentationManager(AsyncTestCase):
             exchange_out = await self.manager.verify_presentation(exchange_in)
             save_ex.assert_called_once()
 
-            assert exchange_out.state == (
-                V10PresentationExchange.STATE_VERIFIED
-            )
+            assert exchange_out.state == (V10PresentationExchange.STATE_VERIFIED)
 
     async def test_send_presentation_ack(self):
         exchange = V10PresentationExchange()

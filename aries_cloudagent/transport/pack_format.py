@@ -7,8 +7,8 @@ from typing import Sequence, Tuple, Union
 from ..config.base import InjectorError
 from ..config.injection_context import InjectionContext
 from ..protocols.routing.messages.forward import Forward
-from ..messaging.task_queue import TaskQueue
 from ..messaging.util import time_now
+from ..utils.task_queue import TaskQueue
 from ..wallet.base import BaseWallet
 from ..wallet.error import WalletError
 
@@ -177,6 +177,7 @@ class PackWireFormat(BaseWireFormat):
         if routing_keys:
             recip_keys = recipient_keys
             for router_key in routing_keys:
+                message = json.loads(message.decode("utf-8"))
                 fwd_msg = Forward(to=recip_keys[0], msg=message)
                 # Forwards are anon packed
                 recip_keys = [router_key]

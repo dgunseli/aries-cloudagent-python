@@ -5,7 +5,7 @@ from typing import Mapping, Tuple
 
 from ....cache.base import BaseCache
 from ....config.injection_context import InjectionContext
-from ....error import BaseError
+from ....core.error import BaseError
 from ....holder.base import BaseHolder
 from ....issuer.base import BaseIssuer
 from ....ledger.base import BaseLedger
@@ -68,7 +68,9 @@ class CredentialManager:
         return max(found, key=lambda r: int(r.tags["epoch"])).tags["cred_def_id"]
 
     async def prepare_send(
-        self, connection_id: str, credential_proposal: CredentialProposal
+        self,
+        connection_id: str,
+        credential_proposal: CredentialProposal
     ) -> Tuple[V10CredentialExchange, CredentialOffer]:
         """
         Set up a new credential exchange for an automated send.
@@ -130,10 +132,6 @@ class CredentialManager:
             Resulting credential exchange record including credential proposal
 
         """
-        # Credential preview must be present
-        if not credential_preview:
-            raise CredentialManagerError("credential_preview is not set")
-
         credential_proposal_message = CredentialProposal(
             comment=comment,
             credential_proposal=credential_preview,
@@ -517,7 +515,8 @@ class CredentialManager:
         return credential_exchange_record
 
     async def store_credential(
-        self, credential_exchange_record: V10CredentialExchange
+        self, credential_exchange_record: V10CredentialExchange,
+        credential_id: str = None
     ) -> Tuple[V10CredentialExchange, CredentialAck]:
         """
         Store a credential in holder wallet; send ack to issuer.
@@ -539,15 +538,24 @@ class CredentialManager:
             )
 
         holder: BaseHolder = await self.context.inject(BaseHolder)
+        if (
+            credential_exchange_record.credential_proposal_dict and
+            "credential_proposal" in credential_exchange_record.credential_proposal_dict
+        ):
+            mime_types = CredentialPreview.deserialize(
+                credential_exchange_record.credential_proposal_dict[
+                    "credential_proposal"
+                ]
+            ).mime_types()
+        else:
+            mime_types = None
+
         credential_id = await holder.store_credential(
             credential_definition,
             raw_credential,
             credential_exchange_record.credential_request_metadata,
-            CredentialPreview.deserialize(
-                credential_exchange_record.credential_proposal_dict[
-                    "credential_proposal"
-                ]
-            ).mime_types(),
+            mime_types,
+            credential_id=credential_id
         )
 
         credential = await holder.get_credential(credential_id)
@@ -563,8 +571,9 @@ class CredentialManager:
             credential_exchange_record.parent_thread_id,
         )
 
-        # Delete the exchange record since we're done with it
-        await credential_exchange_record.delete_record(self.context)
+        if not self.context.settings.get("preserve_exchange_records"):
+            # Delete the exchange record since we're done with it
+            await credential_exchange_record.delete_record(self.context)
         return (credential_exchange_record, credential_ack_message)
 
     async def receive_credential_ack(self) -> V10CredentialExchange:
@@ -587,7 +596,8 @@ class CredentialManager:
         credential_exchange_record.state = V10CredentialExchange.STATE_ACKED
         await credential_exchange_record.save(self.context, reason="credential acked")
 
-        # We're done with the exchange so delete
-        await credential_exchange_record.delete_record(self.context)
+        if not self.context.settings.get("preserve_exchange_records"):
+            # We're done with the exchange so delete
+            await credential_exchange_record.delete_record(self.context)
 
         return credential_exchange_record

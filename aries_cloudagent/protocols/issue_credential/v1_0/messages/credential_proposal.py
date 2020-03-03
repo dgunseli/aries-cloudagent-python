@@ -60,9 +60,7 @@ class CredentialProposal(AgentMessage):
         """
         super().__init__(_id, **kwargs)
         self.comment = comment
-        self.credential_proposal = (
-            credential_proposal if credential_proposal else CredentialPreview()
-        )
+        self.credential_proposal = credential_proposal
         self.schema_id = schema_id
         self.schema_issuer_did = schema_issuer_did
         self.schema_name = schema_name
@@ -80,33 +78,12 @@ class CredentialProposalSchema(AgentMessageSchema):
         model_class = CredentialProposal
 
     comment = fields.Str(required=False, allow_none=False)
-    credential_proposal = fields.Nested(CredentialPreviewSchema, required=True)
-    schema_id = fields.Str(
-        required=False,
-        allow_none=False,
-        **INDY_SCHEMA_ID
+    credential_proposal = fields.Nested(
+        CredentialPreviewSchema, required=False, allow_none=False
     )
-    schema_issuer_did = fields.Str(
-        required=False,
-        allow_none=False,
-        **INDY_DID
-    )
-    schema_name = fields.Str(
-        required=False,
-        allow_none=False,
-    )
-    schema_version = fields.Str(
-        required=False,
-        allow_none=False,
-        **INDY_VERSION
-    )
-    cred_def_id = fields.Str(
-        required=False,
-        allow_none=False,
-        **INDY_CRED_DEF_ID
-    )
-    issuer_did = fields.Str(
-        required=False,
-        allow_none=False,
-        **INDY_DID
-    )
+    schema_id = fields.Str(required=False, allow_none=False, **INDY_SCHEMA_ID)
+    schema_issuer_did = fields.Str(required=False, allow_none=False, **INDY_DID)
+    schema_name = fields.Str(required=False, allow_none=False)
+    schema_version = fields.Str(required=False, allow_none=False, **INDY_VERSION)
+    cred_def_id = fields.Str(required=False, allow_none=False, **INDY_CRED_DEF_ID)
+    issuer_did = fields.Str(required=False, allow_none=False, **INDY_DID)

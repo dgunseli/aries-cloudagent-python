@@ -236,6 +236,19 @@ class TestConnectionManager(AsyncTestCase, TestConfig):
         )
         assert conn_req
 
+    async def test_create_request_my_endpoint(self):
+        conn_req = await self.manager.create_request(
+            ConnectionRecord(
+                initiator=ConnectionRecord.INITIATOR_EXTERNAL,
+                invitation_key=self.test_verkey,
+                their_label="Hello",
+                their_role="Point of contact",
+                alias="Bob",
+            ),
+            my_endpoint="http://testendpoint.com/endpoint"
+        )
+        assert conn_req
+
     async def test_create_request_my_did(self):
         wallet = await self.context.inject(BaseWallet)
         await wallet.create_local_did(
@@ -586,7 +599,7 @@ class TestConnectionManager(AsyncTestCase, TestConfig):
             ConnectionRecord, "save", autospec=True
         ) as mock_conn_rec_save:
 
-            conn_rec = await self.manager.create_static_connection(
+            _my, _their, conn_rec = await self.manager.create_static_connection(
                 my_did=self.test_did,
                 their_did=self.test_target_did,
                 their_verkey=self.test_target_verkey,
@@ -613,7 +626,7 @@ class TestConnectionManager(AsyncTestCase, TestConfig):
             ConnectionRecord, "save", autospec=True
         ) as mock_conn_rec_save:
 
-            conn_rec = await self.manager.create_static_connection(
+            _my, _their, conn_rec = await self.manager.create_static_connection(
                 my_did=self.test_did,
                 their_seed=self.test_seed,
                 their_endpoint=self.test_endpoint,

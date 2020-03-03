@@ -7,8 +7,8 @@ from collections import OrderedDict
 from typing import Callable, Coroutine
 
 from ...config.injection_context import InjectionContext
-from ...classloader import ClassLoader, ModuleLoadError, ClassNotFoundError
-from ...messaging.task_queue import CompletedTask, TaskQueue
+from ...utils.classloader import ClassLoader, ModuleLoadError, ClassNotFoundError
+from ...utils.task_queue import CompletedTask, TaskQueue
 
 from ..outbound.message import OutboundMessage
 from ..wire_format import BaseWireFormat
@@ -77,8 +77,14 @@ class InboundTransportManager:
 
         """
         try:
+            if '.' in config.module:
+                package, module = config.module.split('.', 1)
+            else:
+                package = MODULE_BASE_PATH
+                module = config.module
+
             imported_class = ClassLoader.load_subclass_of(
-                BaseInboundTransport, config.module, MODULE_BASE_PATH
+                BaseInboundTransport, module, package
             )
         except (ModuleLoadError, ClassNotFoundError) as e:
             raise InboundTransportRegistrationError(

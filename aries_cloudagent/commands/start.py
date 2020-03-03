@@ -13,7 +13,7 @@ try:
 except ImportError:
     uvloop = None
 
-from ..conductor import Conductor
+from ..core.conductor import Conductor
 from ..config import argparse as arg
 from ..config.default_context import DefaultContextBuilder
 from ..config.util import common_config
@@ -46,6 +46,9 @@ def execute(argv: Sequence[str] = None):
     args = parser.parse_args(argv)
     settings = get_settings(args)
     common_config(settings)
+
+    # set ledger to read only if explicitely specified
+    settings["ledger.read_only"] = settings.get("read_only_ledger", False)
 
     # Support WEBHOOK_URL environment variable
     webhook_url = os.environ.get("WEBHOOK_URL")

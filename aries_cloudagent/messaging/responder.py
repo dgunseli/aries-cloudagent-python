@@ -8,7 +8,7 @@ in response to the message being handled.
 from abc import ABC, abstractmethod
 from typing import Sequence, Union
 
-from ..error import BaseError
+from ..core.error import BaseError
 from ..connections.models.connection_target import ConnectionTarget
 from ..transport.outbound.message import OutboundMessage
 
@@ -44,6 +44,7 @@ class BaseResponder(ABC):
         reply_to_verkey: str = None,
         target: ConnectionTarget = None,
         target_list: Sequence[ConnectionTarget] = None,
+        to_session_only: bool = False
     ) -> OutboundMessage:
         """Create an OutboundMessage from a message payload."""
         if isinstance(message, AgentMessage):
@@ -63,6 +64,7 @@ class BaseResponder(ABC):
             reply_to_verkey=reply_to_verkey,
             target=target,
             target_list=target_list,
+            to_session_only=to_session_only
         )
 
     async def send(self, message: Union[AgentMessage, str, bytes], **kwargs):

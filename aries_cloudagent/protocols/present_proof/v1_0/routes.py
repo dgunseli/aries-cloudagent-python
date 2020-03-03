@@ -33,6 +33,8 @@ from .models.presentation_exchange import (
     V10PresentationExchangeSchema,
 )
 
+from .message_types import ATTACH_DECO_IDS, PRESENTATION_REQUEST
+
 
 class V10PresentationExchangeListSchema(Schema):
     """Result schema for an Aries#0037 v1.0 presentation exchange query."""
@@ -126,12 +128,12 @@ class IndyProofReqPredSpecSchema(Schema):
     """Schema for predicate specification in indy proof request."""
 
     name = fields.String(example="index", description="Attribute name", required=True)
-    p_type: fields.String(
+    p_type = fields.String(
         description="Predicate type (indy currently supports only '>=')",
         required=True,
         **INDY_PREDICATE
     )
-    p_value: fields.Integer(description="Threshold value", required=True)
+    p_value = fields.Integer(description="Threshold value", required=True)
     restrictions = fields.List(
         fields.Nested(IndyProofReqSpecRestrictionsSchema()),
         description="If present, credential must satisfy one of given restrictions",
@@ -460,7 +462,10 @@ async def presentation_exchange_create_request(request: web.BaseRequest):
     presentation_request_message = PresentationRequest(
         comment=comment,
         request_presentations_attach=[
-            AttachDecorator.from_indy_dict(indy_proof_request)
+            AttachDecorator.from_indy_dict(
+                indy_dict=indy_proof_request,
+                ident=ATTACH_DECO_IDS[PRESENTATION_REQUEST],
+            )
         ],
     )
 
@@ -518,7 +523,10 @@ async def presentation_exchange_send_free_request(request: web.BaseRequest):
     presentation_request_message = PresentationRequest(
         comment=comment,
         request_presentations_attach=[
-            AttachDecorator.from_indy_dict(indy_proof_request)
+            AttachDecorator.from_indy_dict(
+                indy_dict=indy_proof_request,
+                ident=ATTACH_DECO_IDS[PRESENTATION_REQUEST]
+            )
         ],
     )
 

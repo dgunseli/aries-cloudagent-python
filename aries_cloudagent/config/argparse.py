@@ -286,7 +286,7 @@ class DebugGroup(ArgumentGroup):
             "--auto-respond-presentation-request",
             action="store_true",
             help="Automatically respond to Indy presentation requests with a\
-            constructed presentation if exactly one credential can be retrieved\
+            constructed presentation if a corresponding credential can be retrieved\
             for every referent in the presentation request. Default: false.",
         )
         parser.add_argument(
@@ -377,6 +377,28 @@ class GeneralGroup(ArgumentGroup):
             storage engine. This storage interface is used to store internal state.\
             Supported internal storage types are 'basic' (memory) and 'indy'.",
         )
+        parser.add_argument(
+            "-e",
+            "--endpoint",
+            type=str,
+            nargs="+",
+            metavar="<endpoint>",
+            help="Specifies the endpoints to put into DIDDocs\
+            to inform other agents of where they should send messages destined\
+            for this agent. Each endpoint could be one of the specified inbound\
+            transports for this agent, or the endpoint could be that of\
+            another agent (e.g. 'https://example.com/agent-endpoint') if the\
+            routing of messages to this agent by a mediator is configured.\
+            The first endpoint specified will be used in invitations.\
+            The endpoints are used in the formation of a connection\
+            with another agent.",
+        )
+        parser.add_argument(
+            "--read-only-ledger",
+            action="store_true",
+            help="Sets ledger to read-only to prevent updates.\
+            Default: false.",
+        )
 
     def get_settings(self, args: Namespace) -> dict:
         """Extract general settings."""
@@ -385,6 +407,11 @@ class GeneralGroup(ArgumentGroup):
             settings["external_plugins"] = args.external_plugins
         if args.storage_type:
             settings["storage.type"] = args.storage_type
+        if args.endpoint:
+            settings["default_endpoint"] = args.endpoint[0]
+            settings["additional_endpoints"] = args.endpoint[1:]
+        if args.read_only_ledger:
+            settings["read_only_ledger"] = True
         return settings
 
 
@@ -534,6 +561,11 @@ class ProtocolGroup(ArgumentGroup):
             metavar="<log-path>",
             help="Write timing information to a given log file.",
         )
+        parser.add_argument(
+            "--preserve-exchange-records",
+            action="store_true",
+            help="Keep credential exchange records after exchange has completed."
+        )
 
     def get_settings(self, args: Namespace) -> dict:
         """Get protocol settings."""
@@ -550,6 +582,8 @@ class ProtocolGroup(ArgumentGroup):
             settings["timing.enabled"] = True
         if args.timing_log:
             settings["timing.log_file"] = args.timing_log
+        if args.preserve_exchange_records:
+            settings["preserve_exchange_records"] = True
         return settings
 
 
@@ -573,7 +607,9 @@ class TransportGroup(ArgumentGroup):
             help="REQUIRED. Defines the inbound transport(s) on which the agent\
             listens for receiving messages from other agents. This parameter can\
             be specified multiple times to create multiple interfaces.\
-            Supported inbound transport types are 'http' and 'ws'.",
+            Built-in inbound transport types include 'http' and 'ws'.\
+            However, other transports can be loaded by specifying an absolute\
+            module path.",
         )
         parser.add_argument(
             "-ot",
@@ -587,22 +623,6 @@ class TransportGroup(ArgumentGroup):
             will send outgoing messages to other agents. This parameter can be passed\
             multiple times to supoort multiple transport types. Supported outbound\
             transport types are 'http' and 'ws'.",
-        )
-        parser.add_argument(
-            "-e",
-            "--endpoint",
-            type=str,
-            nargs="+",
-            metavar="<endpoint>",
-            help="Specifies the endpoints to put into DIDDocs\
-            to inform other agents of where they should send messages destined\
-            for this agent. Each endpoint could be one of the specified inbound\
-            transports for this agent, or the endpoint could be that of\
-            another agent (e.g. 'https://example.com/agent-endpoint') if the\
-            routing of messages to this agent by a mediator is configured.\
-            The first endpoint specified will be used in invitations.\
-            The endpoints are used in the formation of a connection \
-            with another agent.",
         )
         parser.add_argument(
             "-l",
@@ -619,13 +639,12 @@ class TransportGroup(ArgumentGroup):
             metavar="<message-size>",
             help="Set the maximum size in bytes for inbound agent messages.",
         )
-
         parser.add_argument(
             "--enable-undelivered-queue",
             action="store_true",
-            help="Enable the outbound undelivered queue that enables this agent to hold messages\
-            for delivery to agents without an endpoint. This option will require\
-            additional memory to store messages in the queue.",
+            help="Enable the outbound undelivered queue that enables this agent\
+            to hold messages for delivery to agents without an endpoint. This\
+            option will require additional memory to store messages in the queue.",
         )
 
     def get_settings(self, args: Namespace):
@@ -635,9 +654,6 @@ class TransportGroup(ArgumentGroup):
         settings["transport.outbound_configs"] = args.outbound_transports
         settings["transport.enable_undelivered_queue"] = args.enable_undelivered_queue
 
-        if args.endpoint:
-            settings["default_endpoint"] = args.endpoint[0]
-            settings["additional_endpoints"] = args.endpoint[1:]
         if args.label:
             settings["default_label"] = args.label
         if args.max_message_size:
